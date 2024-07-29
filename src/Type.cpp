@@ -189,7 +189,7 @@ std::vector<Enumeration::Enum> Enumeration::items() const
  *
  * Wraps `lysp_type::name`.
  */
-std::string_view Type::name() const
+std::string Type::name() const
 {
     throwIfParsedUnavailable();
 
@@ -197,11 +197,25 @@ std::string_view Type::name() const
 }
 
 /**
+ * @brief Name of the typedef, if avaialable
+ *
+ * Wraps `lysc_type::name`.
+ */
+std::optional<std::string> Type::typedefName() const
+{
+    if (!m_type->name) {
+        return std::nullopt;
+    }
+
+    return m_type->name;
+}
+
+/**
  * @brief Returns the description of the type.
  *
  * This method only works if the associated context was created with the libyang::ContextOptions::SetPrivParsed flag.
  */
-std::optional<std::string_view> Type::description() const
+std::optional<std::string> Type::description() const
 {
     throwIfParsedUnavailable();
 
@@ -269,7 +283,7 @@ std::vector<Identity> IdentityRef::bases() const
  *
  * Wraps `lyxp_get_expr`.
  */
-std::string_view LeafRef::path() const
+std::string LeafRef::path() const
 {
     auto lref = reinterpret_cast<const lysc_type_leafref*>(m_type);
     return lyxp_get_expr(lref->path);

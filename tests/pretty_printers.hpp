@@ -7,6 +7,7 @@
 */
 #pragma once
 
+#include <algorithm>
 #include <doctest/doctest.h>
 #include <experimental/iterator>
 #include <libyang-cpp/Context.hpp>
@@ -59,7 +60,9 @@ doctest::String toString(const std::vector<libyang::ErrorInfo>& errors)
         oss << "appTag: " << (err.appTag ? *err.appTag : "std::nullopt")  << "\n        ";
         oss << "code: " << err.code << "\n        ";
         oss << "message: " << err.message << "\n        ";
-        oss << "path: " << (err.path ? *err.path : "std::nullopt") << "\n        ";
+        oss << "dataPath: " << (err.dataPath ? *err.dataPath : "std::nullopt") << "\n        ";
+        oss << "schemaPath: " << (err.schemaPath ? *err.schemaPath : "std::nullopt") << "\n        ";
+        oss << "line: " << err.line << "\n        ";
         oss << "level: " << err.level << "\n        ";
         oss << "validationCode: " << err.validationCode << "\n    }";
         return oss.str();
@@ -69,13 +72,13 @@ doctest::String toString(const std::vector<libyang::ErrorInfo>& errors)
     return oss.str().c_str();
 }
 
-doctest::String toString(const std::optional<std::string_view>& optString)
+doctest::String toString(const std::optional<std::string>& optString)
 {
     if (!optString) {
         return "std::nullopt";
     }
 
-    return std::string{*optString}.c_str();
+    return optString->c_str();
 }
 
 doctest::String toString(const std::optional<libyang::DataNode>& optTree)

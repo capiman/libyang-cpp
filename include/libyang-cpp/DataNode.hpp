@@ -183,6 +183,7 @@ public:
     std::string name() const;
     std::string valueStr() const;
     Module module() const;
+    bool isInternal() const;
 
 private:
     friend Iterator<Meta, IterationType::Meta>;
@@ -191,6 +192,7 @@ private:
     std::string m_name;
     std::string m_value;
     Module m_mod;
+    bool m_isInternal;
 };
 
 
@@ -201,7 +203,7 @@ private:
  */
 class LIBYANG_CPP_EXPORT DataNodeTerm : public DataNode {
 public:
-    std::string_view valueStr() const;
+    std::string valueStr() const;
 
     bool hasDefaultValue() const;
     bool isImplicitDefault() const;
@@ -222,8 +224,8 @@ private:
  * Wraps `ly_opaq_name`.
  */
 struct LIBYANG_CPP_EXPORT OpaqueName {
-    std::optional<std::string_view> prefix;
-    std::string_view name;
+    std::optional<std::string> prefix;
+    std::string name;
 };
 
 /**
@@ -234,7 +236,7 @@ struct LIBYANG_CPP_EXPORT OpaqueName {
 class LIBYANG_CPP_EXPORT DataNodeOpaque : public DataNode {
 public:
     OpaqueName name() const;
-    std::string_view value() const;
+    std::string value() const;
     friend DataNode;
 
 private:

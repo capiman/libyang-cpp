@@ -1026,12 +1026,12 @@ TEST_CASE("Data Node manipulation")
                 "/example-schema:bigTree/one",
                 "/example-schema:bigTree/one/myLeaf",
                 "/example-schema:bigTree/two",
-                "/example-schema:bigTree/two/myList[thekey='43221']",
-                "/example-schema:bigTree/two/myList[thekey='43221']/thekey",
+                "/example-schema:bigTree/two/myList[thekey='213']",
+                "/example-schema:bigTree/two/myList[thekey='213']/thekey",
                 "/example-schema:bigTree/two/myList[thekey='432']",
                 "/example-schema:bigTree/two/myList[thekey='432']/thekey",
-                "/example-schema:bigTree/two/myList[thekey='213']",
-                "/example-schema:bigTree/two/myList[thekey='213']/thekey"
+                "/example-schema:bigTree/two/myList[thekey='43221']",
+                "/example-schema:bigTree/two/myList[thekey='43221']/thekey",
             };
 
             REQUIRE(res == expected);
@@ -1045,12 +1045,25 @@ TEST_CASE("Data Node manipulation")
             }
         }
 
+        DOCTEST_SUBCASE("End iterators")
+        {
+            auto coll = node->childrenDfs();
+            REQUIRE(coll.end() == coll.end());
+
+            auto leafColl = node->findPath("/example-schema:bigTree/one/myLeaf")->childrenDfs();
+            REQUIRE(++leafColl.begin() == leafColl.end());
+
+            REQUIRE_THROWS_WITH_AS(coll.end().operator==(leafColl.end()), "Iterators are from different collections", std::out_of_range);
+        }
+
         DOCTEST_SUBCASE("standard algorithms")
         {
             auto coll = node->childrenDfs();
             REQUIRE(std::find_if(coll.begin(), coll.end(), [] (const auto& node) {
                 return node.path() == "/example-schema:bigTree/two/myList[thekey='432']/thekey";
             }) != coll.end());
+
+            REQUIRE(std::all_of(coll.begin(), coll.end(), [](const auto&) { return true; }));
         }
 
         DOCTEST_SUBCASE("incrementing")
@@ -1255,6 +1268,7 @@ TEST_CASE("Data Node manipulation")
 
     DOCTEST_SUBCASE("DataNode::findXPath")
     {
+        // libyang v3 sorts these alphabetically
         const auto data3 = R"({
             "example-schema:person": [
                 {
@@ -1282,7 +1296,7 @@ TEST_CASE("Data Node manipulation")
         {
             auto set = node->findXPath("/example-schema:person[name='Dan']");
 
-            std::any_of(set.begin(), set.end(), [](const auto& node) { node.path(); return true; });
+            std::ignore = std::any_of(set.begin(), set.end(), [](const auto& node) { node.path(); return true; });
         }
 
         DOCTEST_SUBCASE("find one node")
@@ -1308,13 +1322,13 @@ TEST_CASE("Data Node manipulation")
             auto set = node->findXPath("/example-schema:person");
             REQUIRE(set.size() == 3);
 
-            REQUIRE(set.front().path() == "/example-schema:person[name='John']");
-            REQUIRE(set.back().path() == "/example-schema:person[name='David']");
+            REQUIRE(set.front().path() == "/example-schema:person[name='Dan']");
+            REQUIRE(set.back().path() == "/example-schema:person[name='John']");
 
             auto iter = set.begin();
-            REQUIRE((iter++)->path() == "/example-schema:person[name='John']");
             REQUIRE((iter++)->path() == "/example-schema:person[name='Dan']");
             REQUIRE((iter++)->path() == "/example-schema:person[name='David']");
+            REQUIRE((iter++)->path() == "/example-schema:person[name='John']");
             REQUIRE(iter == set.end());
             REQUIRE_THROWS_WITH_AS(*iter, "Dereferenced an .end() iterator", std::out_of_range);
         }
@@ -1324,23 +1338,23 @@ TEST_CASE("Data Node manipulation")
             auto set = node->findXPath("/example-schema:person");
 
             REQUIRE((set.begin() + 0) == set.begin());
-            REQUIRE((set.begin() + 0)->path() == "/example-schema:person[name='John']");
-            REQUIRE((set.begin() + 1)->path() == "/example-schema:person[name='Dan']");
-            REQUIRE((set.begin() + 2)->path() == "/example-schema:person[name='David']");
+            REQUIRE((set.begin() + 0)->path() == "/example-schema:person[name='Dan']");
+            REQUIRE((set.begin() + 1)->path() == "/example-schema:person[name='David']");
+            REQUIRE((set.begin() + 2)->path() == "/example-schema:person[name='John']");
             REQUIRE((set.begin() + 3) == set.end());
             REQUIRE_THROWS(set.begin() + 4);
 
             REQUIRE((set.end() - 0) == set.end());
-            REQUIRE((set.end() - 1)->path() == "/example-schema:person[name='David']");
-            REQUIRE((set.end() - 2)->path() == "/example-schema:person[name='Dan']");
-            REQUIRE((set.end() - 3)->path() == "/example-schema:person[name='John']");
+            REQUIRE((set.end() - 1)->path() == "/example-schema:person[name='John']");
+            REQUIRE((set.end() - 2)->path() == "/example-schema:person[name='David']");
+            REQUIRE((set.end() - 3)->path() == "/example-schema:person[name='Dan']");
             REQUIRE((set.end() - 3) == set.begin());
             REQUIRE_THROWS(set.end() - 4);
 
             auto iter = set.end();
+            REQUIRE((--iter)->path() == "/example-schema:person[name='John']");
             REQUIRE((--iter)->path() == "/example-schema:person[name='David']");
             REQUIRE((--iter)->path() == "/example-schema:person[name='Dan']");
-            REQUIRE((--iter)->path() == "/example-schema:person[name='John']");
             REQUIRE_THROWS(--iter);
         }
 
@@ -1885,6 +1899,7 @@ TEST_CASE("Data Node manipulation")
             }
 
             auto meta = netconfDeletePresenceCont.meta();
+            REQUIRE(std::none_of(meta.begin(), meta.end(), [](const auto& meta) { return meta.isInternal(); }));
             std::transform(meta.begin(), meta.end(), std::back_inserter(actual), [] (const auto& it) { return std::pair{it.name(), it.valueStr()}; });
             REQUIRE(actual == expected);
         }
@@ -1948,11 +1963,11 @@ TEST_CASE("Data Node manipulation")
             data->newPath("/example-schema:myRpc/another", "yay", libyang::CreationOptions::Output);
 
             DOCTEST_SUBCASE("JSON") {
-                out = ctx.newOpaqueJSON(std::string(data->schema().module().name()), "output", std::nullopt);
+                out = ctx.newOpaqueJSON(data->schema().module().name(), "output", std::nullopt);
             }
 
             DOCTEST_SUBCASE("XML") {
-                out = ctx.newOpaqueXML(std::string(data->schema().module().ns()), "output", std::nullopt);
+                out = ctx.newOpaqueXML(data->schema().module().ns(), "output", std::nullopt);
             }
 
             REQUIRE(out);
@@ -1961,6 +1976,28 @@ TEST_CASE("Data Node manipulation")
 
             REQUIRE(*out->printStr(libyang::DataFormat::JSON, libyang::PrintFlags::WithSiblings) == expectedJson);
             REQUIRE(*out->printStr(libyang::DataFormat::XML, libyang::PrintFlags::WithSiblings) == expectedXml);
+        }
+
+        DOCTEST_SUBCASE("libyang internal metadata")
+        {
+            /*
+             * - currently, libyang creates an internal meta node yang:lyds_tree representing a RB-tree for ordering of data in lists
+             * - this test depends on internal libyang implementation which can of course change anytime
+             * - but it seems that yang:lyds_tree can't be created manually (there is no valid value for it?) and I don't know how to test this otherwise
+             */
+            DOCTEST_SUBCASE("leaf-list ordered by system")
+            {
+                auto node = ctx.parseData(R"({"example-schema3:valuesOrderedBySystem": [1,2,3]})"s, libyang::DataFormat::JSON, libyang::ParseOptions::Strict | libyang::ParseOptions::NoState | libyang::ParseOptions::ParseOnly);
+                const auto metaColl = node->meta();
+                REQUIRE(std::find_if(metaColl.begin(), metaColl.end(), [](const auto& meta) { return meta.isInternal(); }) != metaColl.end());
+            }
+
+            DOCTEST_SUBCASE("leaf-list ordered by user")
+            {
+                auto node = ctx.parseData(R"({"example-schema3:values": [1,2,3]})"s, libyang::DataFormat::JSON, libyang::ParseOptions::Strict | libyang::ParseOptions::NoState | libyang::ParseOptions::ParseOnly);
+                const auto metaColl = node->meta();
+                REQUIRE(std::find_if(metaColl.begin(), metaColl.end(), [](const auto& meta) { return meta.isInternal(); }) == metaColl.end());
+            }
         }
     }
 
@@ -2025,48 +2062,117 @@ TEST_CASE("Data Node manipulation")
         ctx.loadModule("ietf-netconf-nmda");
 
         DOCTEST_SUBCASE("notifications") {
-            std::string payload;
-            auto opType = libyang::OperationType::DataYang;
+            DOCTEST_SUBCASE("restconf/netconf") {
+                std::string payload;
+                auto opType = libyang::OperationType::DataYang;
 
-            DOCTEST_SUBCASE("RESTCONF JSON") {
-                payload = R"(
-                {
-                  "ietf-restconf:notification" : {
-                    "eventTime" : "2013-12-21T00:01:00Z",
-                    "example-schema:event" : {
-                      "event-class" : "fault"
+                DOCTEST_SUBCASE("RESTCONF JSON") {
+                    payload = R"(
+                    {
+                      "ietf-restconf:notification" : {
+                        "eventTime" : "2013-12-21T00:01:00Z",
+                        "example-schema:event" : {
+                          "event-class" : "fault"
+                        }
+                      }
                     }
-                  }
+                    )";
+                    opType = libyang::OperationType::NotificationRestconf;
                 }
-                )";
-                opType = libyang::OperationType::NotificationRestconf;
+
+                DOCTEST_SUBCASE("NETCONF XML") {
+                    payload = R"(
+                    <notification
+                       xmlns="urn:ietf:params:xml:ns:netconf:notification:1.0">
+                       <eventTime>2013-12-21T00:01:00Z</eventTime>
+                       <event xmlns="http://example.com/coze">
+                          <event-class>fault</event-class>
+                        </event>
+                    </notification>
+                    )";
+                    opType = libyang::OperationType::NotificationNetconf;
+                }
+
+                auto notif = ctx.parseOp(payload, dataTypeFor(payload), opType);
+                REQUIRE(notif.tree);
+                REQUIRE(notif.tree->path() == "/notification");
+                auto node = notif.tree->child();
+                REQUIRE(node);
+                REQUIRE(node->path() == "/notification/eventTime");
+                REQUIRE(node->asOpaque().value() == "2013-12-21T00:01:00Z");
+
+                REQUIRE(notif.op);
+                node = notif.op->findPath("/example-schema:event/event-class");
+                REQUIRE(!!node);
+                REQUIRE(std::visit(libyang::ValuePrinter{}, node->asTerm().value()) == "fault");
             }
 
-            DOCTEST_SUBCASE("NETCONF XML") {
-                payload = R"(
-                <notification
-                   xmlns="urn:ietf:params:xml:ns:netconf:notification:1.0">
-                   <eventTime>2013-12-21T00:01:00Z</eventTime>
-                   <event xmlns="http://example.com/coze">
-                      <event-class>fault</event-class>
-                    </event>
-                </notification>
-                )";
-                opType = libyang::OperationType::NotificationNetconf;
+            DOCTEST_SUBCASE("yang")
+            {
+                std::string payload;
+
+                DOCTEST_SUBCASE("top-level")
+                {
+                    DOCTEST_SUBCASE("json")
+                    {
+                        payload = R"({
+                          "example-schema:event" : {
+                            "event-class" : "fault"
+                          }
+                        })";
+                    }
+                    DOCTEST_SUBCASE("xml")
+                    {
+                        payload = R"(
+                          <event xmlns="http://example.com/coze">
+                            <event-class>fault</event-class>
+                          </event>
+                        )";
+                    }
+                    auto notif = ctx.parseOp(payload, dataTypeFor(payload), libyang::OperationType::NotificationYang);
+                    REQUIRE(notif.tree);
+                    REQUIRE(notif.op);
+                    REQUIRE(notif.op == notif.tree);
+                    REQUIRE(notif.tree->path() == "/example-schema:event");
+                    auto node = notif.op->findPath("/example-schema:event/event-class");
+                    REQUIRE(!!node);
+                    REQUIRE(std::visit(libyang::ValuePrinter{}, node->asTerm().value()) == "fault");
+                }
+
+                DOCTEST_SUBCASE("nested")
+                {
+                    DOCTEST_SUBCASE("json")
+                    {
+                        payload = R"({
+                          "example-schema:person" : [{
+                            "name": "John",
+                            "event": {
+                              "description" : "fault"
+                            }
+                          }]
+                        })";
+                    }
+                    DOCTEST_SUBCASE("xml")
+                    {
+                        payload = R"(
+                          <person xmlns="http://example.com/coze">
+                            <name>John</name>
+                            <event>
+                              <description>fault</description>
+                            </event>
+                          </person>
+                        )";
+                    }
+                    auto notif = ctx.parseOp(payload, dataTypeFor(payload), libyang::OperationType::NotificationYang);
+                    REQUIRE(notif.tree);
+                    REQUIRE(notif.op);
+                    REQUIRE(notif.op != notif.tree);
+                    REQUIRE(notif.tree->path() == "/example-schema:person[name='John']");
+                    auto node = notif.op->findPath("/example-schema:person[name='John']/event/description");
+                    REQUIRE(!!node);
+                    REQUIRE(std::visit(libyang::ValuePrinter{}, node->asTerm().value()) == "fault");
+                }
             }
-
-            auto notif = ctx.parseOp(payload, dataTypeFor(payload), opType);
-            REQUIRE(notif.tree);
-            REQUIRE(notif.tree->path() == "/notification");
-            auto node = notif.tree->child();
-            REQUIRE(node);
-            REQUIRE(node->path() == "/notification/eventTime");
-            REQUIRE(node->asOpaque().value() == "2013-12-21T00:01:00Z");
-
-            REQUIRE(notif.op);
-            node = notif.op->findPath("/example-schema:event/event-class");
-            REQUIRE(!!node);
-            REQUIRE(std::visit(libyang::ValuePrinter{}, node->asTerm().value()) == "fault");
         }
 
         DOCTEST_SUBCASE("invalid notification") {
@@ -2078,6 +2184,9 @@ TEST_CASE("Data Node manipulation")
 
             REQUIRE_THROWS_WITH_AS(ctx.parseOp("", libyang::DataFormat::XML, libyang::OperationType::NotificationNetconf),
                     "Can't parse a standalone rpc/action/notification into operation data tree: LY_ENOT", libyang::Error);
+
+            REQUIRE_THROWS_WITH_AS(ctx.parseOp("asd", libyang::DataFormat::XML, libyang::OperationType::NotificationYang),
+                    "Can't parse a standalone rpc/action/notification into operation data tree: LY_EVALID", libyang::Error);
 
             /* libyang::setLogOptions(libyang::LogOptions::Log | libyang::LogOptions::Store); */
             REQUIRE_THROWS_WITH_AS(ctx.parseOp(R"(
@@ -2225,7 +2334,7 @@ TEST_CASE("union data types")
     std::optional<libyang::Context> ctxWithParsed{std::in_place, std::nullopt,
         libyang::ContextOptions::SetPrivParsed | libyang::ContextOptions::NoYangLibrary | libyang::ContextOptions::DisableSearchCwd};
     ctxWithParsed->parseModule(with_inet_types_module, libyang::SchemaFormat::YANG);
-    std::string input, expectedPlugin;
+    std::string input, expectedPlugin, expectedTypedef;
 
     DOCTEST_SUBCASE("IPv6")
     {
@@ -2242,21 +2351,25 @@ TEST_CASE("union data types")
             input = "::ffff:192.0.2.1";
         }
         expectedPlugin = "ipv6";
+        expectedTypedef = "ipv6-address";
     }
 
     DOCTEST_SUBCASE("IPv4")
     {
         input = "127.0.0.1";
         expectedPlugin = "ipv4";
+        expectedTypedef = "ipv4-address";
     }
 
     DOCTEST_SUBCASE("string")
     {
         input = "foo-bar.example.org";
         expectedPlugin = "string";
+        expectedTypedef = "domain-name";
     }
 
     auto node = ctxWithParsed->newPath("/with-inet-types:hostname", input);
     REQUIRE(node.asTerm().valueType().internalPluginId().find(expectedPlugin) != std::string::npos);
     REQUIRE_THROWS_AS(node.asTerm().valueType().name(), libyang::ParsedInfoUnavailable);
+    REQUIRE(node.asTerm().valueType().typedefName() == expectedTypedef);
 }

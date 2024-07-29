@@ -100,6 +100,12 @@ module example-schema {
         leaf name {
             type string;
         }
+
+        notification event {
+            leaf description {
+                type string;
+            }
+        }
     }
 
     leaf bossPerson {
@@ -290,6 +296,10 @@ module example-schema3 {
 
     leaf-list values {
         ordered-by user;
+        type int32;
+    }
+
+    leaf-list valuesOrderedBySystem {
         type int32;
     }
 

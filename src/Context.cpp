@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
 */
 
+#include <algorithm>
 #include <libyang-cpp/Context.hpp>
 #include <libyang-cpp/DataNode.hpp>
 #include <libyang-cpp/SchemaNode.hpp>
@@ -180,13 +181,47 @@ std::optional<DataNode> Context::parseData(
 }
 
 /**
+ * @brief Parses data from a string representing extension data tree node.
+ *
+ * Wraps `lyd_parse_ext_data`.
+ */
+std::optional<DataNode> Context::parseExtData(
+    const ExtensionInstance& ext,
+    const std::string& data,
+    const DataFormat format,
+    const std::optional<ParseOptions> parseOpts,
+    const std::optional<ValidationOptions> validationOpts) const
+{
+    auto in = wrap_ly_in_new_memory(data);
+
+    lyd_node* tree = nullptr;
+    auto err = lyd_parse_ext_data(
+        ext.m_ext,
+        nullptr,
+        in.get(),
+        utils::toLydFormat(format),
+        parseOpts ? utils::toParseOptions(*parseOpts) : 0,
+        validationOpts ? utils::toValidationOptions(*validationOpts) : 0,
+        &tree);
+    throwIfError(err, "Can't parse extension data");
+
+    if (!tree) {
+        return std::nullopt;
+    }
+
+    return DataNode{tree, m_ctx};
+}
+
+
+/**
  * @brief Parses YANG data into an operation data tree.
  *
  * Use this method to parse standalone "operation elements", which are:
  *
  *   - a NETCONF RPC,
  *   - a NETCONF notification,
- *   - a RESTCONF notification.
+ *   - a RESTCONF notification,
+ *   - a YANG notification.
  *
  * Parsing any of these requires just the schema (which is available through the Context), and the textual payload.
  * All the other information are encoded in the textual payload as per the standard.
@@ -210,14 +245,21 @@ ParsedOp Context::parseOp(const std::string& input, const DataFormat format, con
     switch (opType) {
     case OperationType::RpcNetconf:
     case OperationType::NotificationNetconf:
-    case OperationType::NotificationRestconf: {
+    case OperationType::NotificationRestconf:
+    case OperationType::NotificationYang: {
         lyd_node* op = nullptr;
         lyd_node* tree = nullptr;
         auto err = lyd_parse_op(m_ctx.get(), nullptr, in.get(), utils::toLydFormat(format), utils::toOpType(opType), &tree, &op);
-        ParsedOp res {
-            .tree = tree ? std::optional{libyang::wrapRawNode(tree)} : std::nullopt,
-            .op = op ? std::optional{libyang::wrapRawNode(op)} : std::nullopt
-        };
+
+        ParsedOp res;
+        res.tree = tree ? std::optional{libyang::wrapRawNode(tree)} : std::nullopt;
+
+        if (opType == OperationType::NotificationYang) {
+            res.op = op && tree ? std::optional{DataNode(op, res.tree->m_refs)} : std::nullopt;
+        } else {
+            res.op = op ? std::optional{libyang::wrapRawNode(op)} : std::nullopt;
+        }
+
         throwIfError(err, "Can't parse a standalone rpc/action/notification into operation data tree");
         return res;
     }
@@ -579,8 +621,10 @@ std::vector<ErrorInfo> Context::getErrors() const
             .appTag = errIt->apptag ? std::optional{errIt->apptag} : std::nullopt,
             .level = utils::toLogLevel(errIt->level),
             .message = errIt->msg,
-            .code = static_cast<ErrorCode>(errIt->no),
-            .path = errIt->path ? std::optional{errIt->path} : std::nullopt,
+            .code = static_cast<ErrorCode>(errIt->err),
+            .dataPath = errIt->data_path ? std::optional{errIt->data_path} : std::nullopt,
+            .schemaPath = errIt->schema_path ? std::optional{errIt->schema_path} : std::nullopt,
+            .line = errIt->line,
             .validationCode = utils::toValidationErrorCode(errIt->vecode)
         });
 
