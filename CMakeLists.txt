@@ -85,6 +85,7 @@ if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.24")
             libyang-cpp/Value.hpp
         )
     set_target_properties(yang-cpp PROPERTIES VERIFY_INTERFACE_HEADER_SETS ON)
+    set_target_properties(yang-cpp PROPERTIES VERSION 1.2.3 SOVERSION 1.2.3)
 endif()
 
 if(BUILD_TESTING)
